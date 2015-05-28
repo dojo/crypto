@@ -6,7 +6,27 @@ import { Hasher, Hash } from './hash';
 export { Binary, Codec, Data, provider } from './main';
 export { Hasher } from './hash';
 
-type Key = any;
+/**
+ * Creates a Signer for a particular algorithm. The created Signer performs lookup on the provider whenever it's called.
+ * The algorithm is specified as a string for simplicity (and because this is internal).
+ */
+function createSigner(algorithm: string): Signer {
+	const signer = <Signer> function (key: Key, data: Data, codec?: Codec): Promise<Binary> {
+		return provider.sign[algorithm](key, <any> data, codec);
+	}
+	signer.create = function<T extends Data> (key: Key, codec?: Codec): Hash<T> {
+		return provider.sign[algorithm].create<T>(key, codec);
+	}
+	return signer;
+}
+
+/**
+ * A signing key.
+ */
+export interface Key {
+	hasher: Hasher,
+	data: Data
+}
 
 /**
  * An digital signing object
@@ -23,21 +43,17 @@ export interface Signature<T extends Data> extends WritableStream<T> {
  * An digital signing function
  */
 export interface Signer {
-	(key: Data, data: Binary): Promise<Binary>;
-	(key: Data, data: string, codec?: Codec): Promise<Binary>;
-	create<T extends Data>(hasher: Hasher, key: Data, codec?: Codec): Hmac<T>;
+	(key: Key, data: Binary): Promise<Binary>;
+	(key: Key, data: string, codec?: Codec): Promise<Binary>;
+	create<T extends Data>(key: Key, codec?: Codec): Signature<T>;
 }
 
 /**
- * Computes the HMAC of a chunk of data.
+ * Something that provides a suite of hash algorithm implementations.
  */
-export const hmac = <Signer> function (key: Key, data: Data, codec?: Codec): Promise<Binary> {
-	return provider.hmac(key.hasher, <any> data, codec);
+export interface SignatureProvider {
+	hmac: Signer,
+	[ algorithm: string ]: Signer
 }
 
-/**
- * Creates an object that can be used to compute the HMAC of a data stream.
- */
-hmac.create = function<T extends Data> (key: Key, codec?: Codec): Hmac<T> {
-	return provider.hmac.create<T>(key.hasher, codec);
-}
+export const hmac = createSigner('hmac');

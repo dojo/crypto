@@ -4,12 +4,12 @@ import { hmac } from './sign';
 
 const provider = <CryptoProvider> {
 	hash: {
-		md5: md5,
-		sha1: sha1,
-		sha256: sha256
+		md5,
+		sha1,
+		sha256
 	},
 	sign: {
-		hmac: hmac
+		hmac
 	}
 };
 

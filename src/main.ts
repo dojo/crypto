@@ -1,5 +1,5 @@
 import { Hasher, HashProvider } from './hash';
-import { Signer } from './hmac';
+import { Signer, SignatureProvider } from './sign';
 import Promise from 'dojo-core/Promise';
 import has from 'dojo-core/has';
 import scriptProvider from './script/provider';
@@ -16,7 +16,7 @@ export type Codec = string;
  */
 export interface CryptoProvider {
 	hash: HashProvider,
-	hmac: Signer
+	sign: SignatureProvider
 }
 
 /**

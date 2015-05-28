@@ -4,7 +4,29 @@ The crypto package provides cryptographic utilities including hashing and signin
 
 ## Features
 
-Coming soon!
+Currently the crypto package provides a suite of hashing functions and an HMAC implementation.
+
+### Hashing
+
+```ts
+import sha1 from 'dojo-crypto/hash';
+
+sha1('this is a test').then(function (result) {
+	console.log('got hash:', result);
+});
+```
+
+### Signing
+
+```ts
+import sha1 from 'dojo-crypto/hash';
+import hmac from 'dojo-crypto/sign';
+
+hmac(sha1, 'a key', 'this is a test').then(function (result) {
+	console.log('got HMAC:', result);
+});
+```
+
 
 ## How do I use this package?
 

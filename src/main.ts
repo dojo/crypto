@@ -1,10 +1,13 @@
 import { Hasher, HashProvider } from './hash';
 import { Signer, SigningProvider } from './sign';
 import Promise from 'dojo-core/Promise';
-import has from 'dojo-core/has';
+import has, { add as hasAdd } from 'dojo-core/has';
+import global from 'dojo-core/global';
 import scriptProvider from './script/provider';
 import nodeProvider from './node/provider';
 import webProvider from './webcrypto/provider';
+
+hasAdd('webcrypto', typeof global.SubtleCrypto !== 'undefined');
 
 export type Binary = ArrayBufferView | Buffer | number[];
 // TODO: this should be an encoding Codec (or equivalent) when that exists

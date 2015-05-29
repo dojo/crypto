@@ -1,22 +1,22 @@
 import { Hasher, HashProvider } from './hash';
-import { Signer, SignatureProvider } from './sign';
+import { Signer, SigningProvider } from './sign';
 import Promise from 'dojo-core/Promise';
 import has from 'dojo-core/has';
 import scriptProvider from './script/provider';
 import nodeProvider from './node/provider';
 import webProvider from './webcrypto/provider';
 
-export type Binary = Buffer | ArrayBufferView;
-export type Data = string | Binary;
+export type Binary = ArrayBufferView | Buffer | number[];
 // TODO: this should be an encoding Codec (or equivalent) when that exists
 export type Codec = string;
+export type Data = string | Binary;
 
 /**
  * An interface describing a cryptographic provider.
  */
 export interface CryptoProvider {
 	hash: HashProvider,
-	sign: SignatureProvider
+	sign: SigningProvider
 }
 
 /**

@@ -11,8 +11,17 @@ Currently the crypto package provides a suite of hashing functions and an HMAC i
 ```ts
 import sha1 from 'dojo-crypto/hash';
 
+// Hash a string
 sha1('this is a test').then(function (result) {
 	console.log('got hash:', result);
+});
+
+// Hash a stream
+const sha1Hasher = sha1.create();
+sha1Hasher.update('this is a test');
+sha1Hasher.close();
+sha1Hasher.digest.then(function (result) {
+	console.log(got hash:', result);
 });
 ```
 
@@ -20,10 +29,24 @@ sha1('this is a test').then(function (result) {
 
 ```ts
 import sha1 from 'dojo-crypto/hash';
-import hmac from 'dojo-crypto/sign';
+import hmac, { Key } from 'dojo-crypto/sign';
 
-hmac(sha1, 'a key', 'this is a test').then(function (result) {
+const key: Key = {
+	algorithm: sha1,
+	data: 'foo'
+};
+
+// Generate a signature for a string
+hmac(key, 'this is a test').then(function (result) {
 	console.log('got HMAC:', result);
+});
+
+// Generate a signature for a stream
+const hmacSigner = hmac.create(key);
+hmacSigner.update('this is a test');
+hmacSigner.close();
+hmacSigner.signature.then(function (result) {
+	console.log(got hash:', result);
 });
 ```
 

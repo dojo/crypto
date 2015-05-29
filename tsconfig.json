@@ -31,6 +31,8 @@
 		"./tests/functional/all.ts",
 		"./tests/intern-local.ts",
 		"./tests/intern.ts",
+		"./tests/support/node.d.ts",
+		"./tests/support/node/crypto.ts",
 		"./tests/typings/chai/chai.d.ts",
 		"./tests/typings/digdug/digdug.d.ts",
 		"./tests/typings/dojo2/dojo.d.ts",
@@ -39,6 +41,7 @@
 		"./tests/typings/node/node.d.ts",
 		"./tests/typings/tsd.d.ts",
 		"./tests/unit/all.ts",
-		"./tests/unit/hash.ts"
+		"./tests/unit/hash.ts",
+		"./tests/unit/sign.ts"
 	]
 }

@@ -9,7 +9,9 @@ Currently the crypto package provides a suite of hashing functions and an HMAC i
 ### Hashing
 
 ```ts
-import sha1 from 'dojo-crypto/hash';
+import createHash from 'dojo-crypto/hash';
+
+const sha1 = createHash('sha1');
 
 // Hash a string
 sha1('this is a test').then(function (result) {
@@ -29,8 +31,9 @@ sha1Hasher.digest.then(function (result) {
 
 ```ts
 import sha1 from 'dojo-crypto/hash';
-import hmac, { Key } from 'dojo-crypto/sign';
+import createSign, { Key } from 'dojo-crypto/sign';
 
+const hmac = createSign('hmac');
 const key: Key = {
 	algorithm: sha1,
 	data: 'foo'

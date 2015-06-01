@@ -71,6 +71,12 @@ npm install
 npm link dojo-core
 ```
 
+To use a hash or signing algorithm, simply import the desired algorithm(s) from
+`dojo-crypto/hash` (and `dojo-crypto/sign` if required) in your code. A default
+crypto provider is selected when the library is loaded, either `node`,
+`webcrypto`, or `script`. The end user may select a different provider by
+importing `provider` from `dojo-crypto/main` and setting it to a new value.
+
 ## How do I contribute?
 
 We appreciate your interest!  Please see the [Guidelines Repository](https://github.com/dojo/guidelines#readme) for the

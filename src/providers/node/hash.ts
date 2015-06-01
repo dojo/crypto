@@ -1,11 +1,20 @@
-import Promise from 'dojo-core/Promise';
-import { Binary, Codec, Data, Hasher, HashFunction } from '../hash';
 import * as crypto from 'crypto';
+import Promise from 'dojo-core/Promise';
+import { Binary, Codec, Data, Hasher, HashFunction } from '../../crypto';
+
+/**
+ * Algorithms available through this provider. This
+ */
+export const ALGORITHMS = {
+	md5: 'md5',
+	sha1: 'sha1',
+	sha256: 'sha256'
+};
 
 /**
  * Returns the name of a Node encoding scheme that corresponds to a particular Codec.
  */
-function toEncoding(codec?: Codec) {
+function getEncodingName(codec?: Codec) {
 	return codec ? String(codec) : undefined;
 }
 
@@ -14,7 +23,7 @@ function toEncoding(codec?: Codec) {
  */
 function nodeHash(algorithm: string, data: Data, codec?: Codec): Promise<Binary> {
 	const hash = crypto.createHash(algorithm);
-	const encoding = toEncoding(codec);
+	const encoding = getEncodingName(codec);
 	hash.update(data, encoding);
 	return Promise.resolve(hash.digest());
 }
@@ -60,7 +69,7 @@ class NodeHasher<T extends Data> implements Hasher<T> {
 	close(): Promise<void> {
 		if (this._hash) {
 			this._resolve(this._hash.digest());
-			// Release the reference to the Hmac/Signer instance and reject the digest
+			// Release the reference to the Hash instance and reject the digest
 			Object.defineProperty(this, '_hash', { value: undefined });
 		}
 		return resolvedPromise;
@@ -79,17 +88,18 @@ class NodeHasher<T extends Data> implements Hasher<T> {
 	}
 }
 
-function createHashFunction(algorithm: string) {
+export default function createHash(algorithm: string): HashFunction {
+	if (!(algorithm in ALGORITHMS)) {
+		throw new Error('invalid algorithm');
+	}
+
 	const hasher = <HashFunction> function (data: Data, codec?: Codec): Promise<Binary> {
 		return nodeHash(algorithm, data, codec);
 	}
 	hasher.create = function<T extends Data> (codec?: Codec): Hasher<T> {
-		return new NodeHasher<T>(algorithm, toEncoding(codec));
+		return new NodeHasher<T>(algorithm, getEncodingName(codec));
 	}
 	hasher.algorithm = algorithm;
+
 	return hasher;
 }
-
-export const md5 = createHashFunction('md5');
-export const sha1 = createHashFunction('sha1');
-export const sha256 = createHashFunction('sha256');

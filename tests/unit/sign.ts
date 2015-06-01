@@ -1,14 +1,12 @@
 import registerSuite = require('intern!object');
 import assert = require('intern/chai!assert');
-import * as hash from 'src/hash';
-import * as sign from 'src/sign';
-import { Data } from 'src/main';
+import * as crypto from 'src/crypto';
 
 type Suite = { [ key: string ]: any };
 
-function addTests(suite: Suite, algorithm: string, key: sign.Key, input: string, expected: number[]) {
-	const signingFunction = <sign.SigningFunction> (<any> sign)[algorithm];
-	suite[algorithm + '-' + key.algorithm.algorithm] = {
+function addTests(suite: Suite, algorithm: string, key: crypto.Key, input: string, expected: number[]) {
+	const signingFunction = crypto.createSign(algorithm);
+	suite[algorithm + '-' + key.algorithm] = {
 		direct() {
 			return signingFunction(key, input).then(function (result) {
 				assert.deepEqual(toArray(result), expected);
@@ -45,7 +43,7 @@ function addTests(suite: Suite, algorithm: string, key: sign.Key, input: string,
 	}
 }
 
-function toArray(buffer: Data): number[] {
+function toArray(buffer: crypto.Data): number[] {
 	return Array.prototype.slice.call(buffer);
 }
 
@@ -53,8 +51,8 @@ const suite: Suite = {
 	name: 'sign'
 }
 
-const key: sign.Key = {
-	algorithm: hash.sha256,
+const key: crypto.Key = {
+	algorithm: 'sha256',
 	data: 'Jefe'
 };
 addTests(suite, 'hmac', key, 'what do ya want for nothing?', [

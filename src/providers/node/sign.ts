@@ -1,31 +1,33 @@
-import Promise from 'dojo-core/Promise';
-import { Binary, Codec, Data, Hasher, Key, Signer, SigningFunction } from '../sign';
-import * as hash from '../hash';
 import * as crypto from 'crypto';
+import Promise from 'dojo-core/Promise';
+import { Binary, Codec, Data, Key, Signer, SignFunction } from '../../crypto';
+
+/**
+ * Sign algorithms available through this provider. This object maps crypto API algorithm names to native (Node.js)
+ * names.
+ */
+const ALGORITHMS = {
+	hmac: 'hmac',
+};
+
+const resolvedPromise = Promise.resolve();
 
 /**
  * Returns the name of a Node encoding scheme that corresponds to a particular Codec.
  */
-function toEncoding(codec?: Codec) {
+function getEncodingName(codec?: Codec) {
 	return codec ? String(codec) : undefined;
-}
-
-/**
- * Get the name corresponding to a key's algorithm property.
- */
-function getAlgorithmName(key: Key): string {
-	return key.algorithm.algorithm;
 }
 
 /**
  * Generates a signature for a chunk of data.
  */
-function nodeSign(algorithm: string, key: Key, data: Data, codec?: Codec): Promise<Binary> {
-	const hashAlgorithm = getAlgorithmName(key);
+function sign(algorithm: string, key: Key, data: Data, codec?: Codec): Promise<Binary> {
+	const hashAlgorithm = key.algorithm;
 	if (algorithm === 'hmac') {
 		let keyData = key.data;
 		const hmac = crypto.createHmac(hashAlgorithm, <Buffer> key.data);
-		const encoding = toEncoding(codec);
+		const encoding = getEncodingName(codec);
 		hmac.update(data, encoding);
 		return Promise.resolve(hmac.digest());
 	}
@@ -33,9 +35,6 @@ function nodeSign(algorithm: string, key: Key, data: Data, codec?: Codec): Promi
 		// TODO: work with Node's crypto.createSign
 	}
 }
-
-// Cache a resolved Promise to return from the stream methods.
-const resolvedPromise = Promise.resolve();
 
 /**
  * An object that can be used to generate a signature for a stream of data.
@@ -45,7 +44,7 @@ class NodeSigner<T extends Data> implements Signer<T> {
 		if (algorithm === 'hmac') {
 			Object.defineProperty(this, '_sign', {
 				configurable: true,
-				value: crypto.createHmac(key.algorithm.algorithm, <Buffer> key.data)
+				value: crypto.createHmac(key.algorithm, <Buffer> key.data)
 			});
 		}
 		Object.defineProperty(this, '_encoding', { value: encoding });
@@ -99,14 +98,17 @@ class NodeSigner<T extends Data> implements Signer<T> {
 	}
 }
 
-function createSigningFunction(algorithm: string) {
-	const signingFunction = <SigningFunction> function (key: Key, data: Data, codec?: Codec): Promise<Binary> {
-		return nodeSign(algorithm, key, data, codec);
+export default function createSign(algorithm: string): SignFunction {
+	if (!(algorithm in ALGORITHMS)) {
+		throw new Error('invalid algorithm');
 	}
-	signingFunction.create = function<T extends Data> (key: Key, codec?: Codec): Signer<T> {
-		return new NodeSigner<T>(algorithm, key, toEncoding(codec));
-	}
-	return signingFunction;
-}
 
-export const hmac = createSigningFunction('hmac');
+	const signFunction = <SignFunction> function (key: Key, data: Data, codec?: Codec): Promise<Binary> {
+		return sign(algorithm, key, data, codec);
+	}
+	signFunction.create = function<T extends Data> (key: Key, codec?: Codec): Signer<T> {
+		return new NodeSigner<T>(algorithm, key, getEncodingName(codec));
+	}
+
+	return signFunction;
+}

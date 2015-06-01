@@ -1,12 +1,11 @@
 import registerSuite = require('intern!object');
 import assert = require('intern/chai!assert');
-import * as hash from 'src/hash';
-import { Data } from 'src/main';
+import * as crypto from 'src/crypto';
 
 type Suite = { [ key: string ]: any };
 
 function addTests(suite: Suite, algorithm: string, input: string, expected: number[]) {
-	const hasher = <hash.HashFunction> (<any> hash)[algorithm];
+	const hasher = crypto.createHash(algorithm);
 	suite[algorithm] = {
 		direct() {
 			return hasher(input).then(function (result) {
@@ -25,7 +24,7 @@ function addTests(suite: Suite, algorithm: string, input: string, expected: numb
 	}
 }
 
-function toArray(buffer: Data): number[] {
+function toArray(buffer: crypto.Data): number[] {
 	return Array.prototype.slice.call(buffer);
 }
 

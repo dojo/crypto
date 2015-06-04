@@ -32,7 +32,7 @@ function sign(algorithm: string, key: Key, data: Data, codec?: Codec): Promise<B
 		return Promise.resolve(hmac.digest());
 	}
 	else {
-		// TODO: work with Node's crypto.createSign
+		// TODO: work with Node's crypto.getSign
 	}
 }
 
@@ -98,7 +98,7 @@ class NodeSigner<T extends Data> implements Signer<T> {
 	}
 }
 
-export default function createSign(algorithm: string): SignFunction {
+export default function getSign(algorithm: string): SignFunction {
 	if (!(algorithm in ALGORITHMS)) {
 		throw new Error('invalid algorithm');
 	}

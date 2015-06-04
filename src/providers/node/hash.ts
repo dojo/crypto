@@ -88,7 +88,7 @@ class NodeHasher<T extends Data> implements Hasher<T> {
 	}
 }
 
-export default function createHash(algorithm: string): HashFunction {
+export default function getHash(algorithm: string): HashFunction {
 	if (!(algorithm in ALGORITHMS)) {
 		throw new Error('invalid algorithm');
 	}

@@ -1,10 +1,4 @@
-import createHash, { ALGORITHMS } from './node/hash';
-import createSign from './node/sign';
-import { CryptoProvider, Key } from '../crypto';
+import getHash from './node/hash';
+import getSign from './node/sign';
 
-const nodeProvider: CryptoProvider = {
-	createHash: createHash,
-	createSign: createSign
-};
-
-export default nodeProvider;
+export { getHash, getSign }

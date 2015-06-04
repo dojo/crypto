@@ -5,7 +5,7 @@ import * as crypto from 'src/crypto';
 type Suite = { [ key: string ]: any };
 
 function addTests(suite: Suite, algorithm: string, key: crypto.Key, input: string, expected: number[]) {
-	const signingFunction = crypto.createSign(algorithm);
+	const signingFunction = crypto.getSign(algorithm);
 	suite[algorithm + '-' + key.algorithm] = {
 		direct() {
 			return signingFunction(key, input).then(function (result) {

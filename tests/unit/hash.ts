@@ -5,7 +5,7 @@ import * as crypto from 'src/crypto';
 type Suite = { [ key: string ]: any };
 
 function addTests(suite: Suite, algorithm: string, input: string, expected: number[]) {
-	const hasher = crypto.createHash(algorithm);
+	const hasher = crypto.getHash(algorithm);
 	suite[algorithm] = {
 		direct() {
 			return hasher(input).then(function (result) {

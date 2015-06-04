@@ -13,8 +13,11 @@ import createHash from 'dojo-crypto/hash';
 
 const sha1 = createHash('sha1');
 
-// Hash a string
+// Hash strings
 sha1('this is a test').then(function (result) {
+	console.log('got hash:', result);
+});
+sha1('this is another test').then(function (result) {
 	console.log('got hash:', result);
 });
 
@@ -35,12 +38,15 @@ import createSign, { Key } from 'dojo-crypto/sign';
 
 const hmac = createSign('hmac');
 const key: Key = {
-	algorithm: sha1,
+	algorithm: 'sha1',
 	data: 'foo'
 };
 
-// Generate a signature for a string
+// Generate signatures for strings
 hmac(key, 'this is a test').then(function (result) {
+	console.log('got HMAC:', result);
+});
+hmac(key, 'this is another test').then(function (result) {
 	console.log('got HMAC:', result);
 });
 

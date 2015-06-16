@@ -16,7 +16,7 @@ const ALGORITHMS = {
 /**
  * Hashes a chunk of data.
  */
-function nodeHash(algorithm: string, data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
+function nodeHash(algorithm: string, data: Data, codec: Codec): Promise<ByteBuffer> {
 	const hash = crypto.createHash(algorithm);
 	const encoding = getEncodingName(codec);
 	hash.update(data, encoding);
@@ -84,10 +84,6 @@ class NodeHasher<T extends Data> implements Hasher<T> {
 }
 
 export default function getHash(algorithm: string): HashFunction {
-	if (!(algorithm in ALGORITHMS)) {
-		throw new Error('invalid algorithm; available algorithms are [ \'' + Object.keys(ALGORITHMS).join('\', \'') + '\' ]');
-	}
-
 	const hasher = <HashFunction> function (data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
 		return nodeHash(algorithm, data, codec);
 	};

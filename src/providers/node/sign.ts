@@ -16,17 +16,12 @@ const resolvedPromise = Promise.resolve();
 /**
  * Generates a signature for a chunk of data.
  */
-function sign(algorithm: string, key: Key, data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
+function sign(algorithm: string, key: Key, data: Data, codec: Codec): Promise<ByteBuffer> {
 	const hashAlgorithm = key.algorithm;
-	if (algorithm === 'hmac') {
-		const hmac = crypto.createHmac(hashAlgorithm, <Buffer> key.data);
-		const encoding = getEncodingName(codec);
-		hmac.update(data, encoding);
-		return Promise.resolve(hmac.digest());
-	}
-	else {
-		// TODO: work with Node's crypto.getSign
-	}
+	const hmac = crypto.createHmac(hashAlgorithm, <Buffer> key.data);
+	const encoding = getEncodingName(codec);
+	hmac.update(data, encoding);
+	return Promise.resolve(hmac.digest());
 }
 
 /**
@@ -34,12 +29,10 @@ function sign(algorithm: string, key: Key, data: Data, codec: Codec = utf8): Pro
  */
 class NodeSigner<T extends Data> implements Signer<T> {
 	constructor(algorithm: string, key: Key, encoding: string) {
-		if (algorithm === 'hmac') {
-			Object.defineProperty(this, '_sign', {
-				configurable: true,
-				value: crypto.createHmac(key.algorithm, <Buffer> key.data)
-			});
-		}
+		Object.defineProperty(this, '_sign', {
+			configurable: true,
+			value: crypto.createHmac(key.algorithm, <Buffer> key.data)
+		});
 		Object.defineProperty(this, '_encoding', { value: encoding });
 		Object.defineProperty(this, 'signature', {
 			value: new Promise((resolve, reject) => {
@@ -49,7 +42,7 @@ class NodeSigner<T extends Data> implements Signer<T> {
 		});
 	}
 
-	private _sign: crypto.Hmac | crypto.Signer;
+	private _sign: crypto.Hmac;
 	private _encoding: string;
 	private _resolve: (value: any) => void;
 	private _reject: (reason: Error) => void;
@@ -67,10 +60,7 @@ class NodeSigner<T extends Data> implements Signer<T> {
 
 	close(): Promise<void> {
 		if (this._sign) {
-			let result: Buffer;
-			if ('digest' in this._sign) {
-				result = (<crypto.Hmac> this._sign).digest();
-			}
+			const result = (<crypto.Hmac> this._sign).digest();
 			// Release the reference to the Hmac/Signer instance
 			Object.defineProperty(this, '_sign', { value: undefined });
 			this._resolve(result);

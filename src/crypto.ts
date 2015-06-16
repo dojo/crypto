@@ -37,6 +37,22 @@ declare var require: Function;
 export type Data = string | ByteBuffer;
 
 /**
+ * Supported hash algorithms 
+ */
+const HASH_ALGORITHMS = {
+	md5: true,
+	sha1: true,
+	sha256: true
+}
+
+/**
+ * Supported signing algorithms 
+ */
+const SIGN_ALGORITHMS = {
+	hmac: true
+}
+
+/**
  * An interface describing a cryptographic provider.
  */
 export interface CryptoProvider {
@@ -68,13 +84,25 @@ export interface SignFunction {
  * The current provider. Providers supply concrete implementations of the API described here. Users should not typically
  * need to access providers directly.
  */
-let provider: Promise<CryptoProvider>;
+let provider: CryptoProvider;
 
 /**
  * Gets the HashFunction for a particular algorithm. The algorithm is specified as a string for simplicity and
  * extensibility.
  */
 export function getHash(algorithm: string): HashFunction {
+	// If a provider has been loaded, defer to its getHash
+	if (provider) {
+		return provider.getHash(algorithm);
+	}
+
+	// Before a provider has been loaded, check whether the requested algorithm is one of the standard set. After a
+	// provider is loaded, it will handle algorithm verification itself.
+	if (!(algorithm in HASH_ALGORITHMS)) {
+		throw new Error('invalid algorithm; available algorithms are [ \'' +
+			Object.keys(HASH_ALGORITHMS).join('\', \'') + '\' ]');
+	}
+
 	let realHash: HashFunction;
 	const hashPromise = new Promise<HashFunction>(function (resolve, reject) {
 		getProvider().then(function (provider) {
@@ -113,6 +141,18 @@ export function getHash(algorithm: string): HashFunction {
  * extensibility.
  */
 export function getSign(algorithm: string): SignFunction {
+	// If a provider has been loaded, defer to its getSign
+	if (provider) {
+		return provider.getSign(algorithm);
+	}
+
+	// Before a provider has been loaded, check whether the requested algorithm is one of the standard set. After a
+	// provider is loaded, it will handle algorithm verification itself.
+	if (!(algorithm in SIGN_ALGORITHMS)) {
+		throw new Error('invalid algorithm; available algorithms are [ \'' +
+			Object.keys(SIGN_ALGORITHMS).join('\', \'') + '\' ]');
+	}
+
 	let realSign: SignFunction;
 	const signPromise = new Promise<SignFunction>(function (resolve, reject) {
 		getProvider().then(function (provider) {
@@ -123,7 +163,7 @@ export function getSign(algorithm: string): SignFunction {
 		});
 	});
 
-	// Return a wrapper that will defer calls to the hash until a provider has been loaded.
+	// Return a wrapper that will defer calls to the sign function until a provider has been loaded.
 	const signFunction = <SignFunction> function (key: Key, data: Data, codec?: Codec): Promise<ByteBuffer> {
 		if (realSign) {
 			return realSign(key, <any> data, codec);
@@ -133,8 +173,8 @@ export function getSign(algorithm: string): SignFunction {
 		});
 	};
 
-	// Return a wrapper class that will defer calls until a provider has been loaded and an actual Hasher instance has
-	// been created.
+	// Return a wrapper class that will defer calls until a provider has been loaded and an actual SignFunction instance
+	// has been created.
 	signFunction.create = function<T extends Data> (key: Key, codec?: Codec): Signer<T> {
 		return new SignerWrapper(signPromise, key, codec);
 	};
@@ -146,42 +186,41 @@ export function getSign(algorithm: string): SignFunction {
  * Returns a promise that resolves to the current provider object.
  */
 function getProvider(): Promise<CryptoProvider> {
-	if (!provider) {
-		// Load a platform-specific default provider.
-		provider = new Promise(function (resolve, reject) {
-			if (typeof define === 'function' && define.amd) {
-				function loadProvider(mid: string) {
-					require([ mid ], function (_provider: { default: CryptoProvider }) {
-						resolve(_provider);
-					});
-				}
-
-				if (has('host-node')) {
-					loadProvider('./providers/node');
-				}
-				else if (has('webcrypto')) {
-					loadProvider('./providers/webcrypto');
-				}
-				else {
-					loadProvider('./providers/script');
-				}
+	// Load a platform-specific default provider.
+	return new Promise(function (resolve, reject) {
+		if (typeof define === 'function' && define.amd) {
+			function loadProvider(mid: string) {
+				require([ mid ], function (_provider: CryptoProvider) {
+					provider = _provider;
+					resolve(provider);
+				});
 			}
-			else if (has('host-node')) {
-				resolve(require('./providers/node'));
+
+			if (has('host-node')) {
+				loadProvider('./providers/node');
+			}
+			else if (has('webcrypto')) {
+				loadProvider('./providers/webcrypto');
 			}
 			else {
-				reject(new Error('Unknown environment or loader'));
+				loadProvider('./providers/script');
 			}
-		});
-	}
-	return provider;
+		}
+		else if (has('host-node')) {
+			provider = require('./providers/node');
+			resolve(provider);
+		}
+		else {
+			reject(new Error('Unknown environment or loader'));
+		}
+	});
 }
 
 /**
  * Sets the implementation provider.
  */
 export function setProvider(_provider: CryptoProvider): void {
-	provider = Promise.resolve(_provider);
+	provider = _provider;
 }
 
 /**

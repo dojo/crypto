@@ -1,27 +1,127 @@
 import registerSuite = require('intern!object');
 import assert = require('intern/chai!assert');
 import * as crypto from 'src/crypto';
+import { ascii, base64, hex, utf8 } from 'dojo-core/encoding';
 
 type Suite = { [ key: string ]: any };
 
 function addTests(suite: Suite, algorithm: string, input: string, expected: number[]) {
-	const hasher = crypto.getHash(algorithm);
+	let hash: crypto.HashFunction;
+
 	suite[algorithm] = {
 		direct() {
-			return hasher(input).then(function (result) {
+			// clear the provider so we can try out the deferred #hash
+			crypto.setProvider(undefined);
+			hash = crypto.getHash(algorithm);
+			return hash(input).then(function (result) {
 				assert.deepEqual(toArray(result), expected);
 			});
 		},
 
-		stream() {
-			const hashObject = hasher.create();
-			hashObject.write(input);
-			hashObject.close();
-			return hashObject.digest.then(function (result) {
-				assert.deepEqual(toArray(result), expected);
-			});
+		encoded: {
+			utf8() {
+				return hash(input, utf8).then(function (result) {
+					assert.deepEqual(toArray(result), expected);
+				});
+			},
+
+			ascii() {
+				return hash(input, ascii).then(function (result) {
+					assert.deepEqual(toArray(result), expected);
+				});
+			},
+
+			base64() {
+				const inputBytes = utf8.encode(input);
+				const input64 = base64.decode(inputBytes);
+				return hash(input64, base64).then(function (result) {
+					assert.deepEqual(toArray(result), expected);
+				});
+			},
+
+			hex() {
+				const inputBytes = utf8.encode(input);
+				const inputHex = hex.decode(inputBytes);
+				return hash(inputHex, hex).then(function (result) {
+					assert.deepEqual(toArray(result), expected);
+				});
+			}
+		},
+
+		stream: {
+			'full run': {
+				direct() {
+					// Clear the provider so we can try out the deferred #create
+					crypto.setProvider(undefined);
+					hash = crypto.getHash(algorithm);
+
+					const hasher = hash.create();
+					hasher.write(input);
+					hasher.close();
+					return hasher.digest.then(function (result) {
+						assert.deepEqual(toArray(result), expected);
+					});
+				},
+
+				encoded() {
+					const hasher = hash.create(utf8);
+					hasher.write(input);
+					hasher.close();
+					return hasher.digest.then(function (result) {
+						assert.deepEqual(toArray(result), expected);
+					});
+				},
+
+				'after direct hash'() {
+					// Get a hash, use it, then call create to test the `realHash` branch
+					hash = crypto.getHash(algorithm);
+					return hash('').then(function () {
+						const hasher = hash.create(utf8);
+						hasher.write(input);
+						hasher.close();
+						return hasher.digest.then(function (result) {
+							assert.deepEqual(toArray(result), expected);
+						});
+					});
+				}
+			},
+
+			start() {
+				// Reset the provider so we'll call the wrapper's start
+				crypto.setProvider(undefined);
+				hash = crypto.getHash(algorithm);
+
+				// Just check that it doesn't throw
+				const hasher = hash.create();
+				hasher.start(function () {});
+			},
+
+			aborted() {
+				// Reset the provider so we'll call the wrapper's abort
+				crypto.setProvider(undefined);
+				hash = crypto.getHash(algorithm);
+
+				const hasher = hash.create();
+				hasher.abort(new Error('canceled'));
+				return hasher.digest.then(
+					function (result) {
+						assert(false, 'hashature should have rejected');
+					}, function (reason) {
+						assert.strictEqual(reason.message, 'canceled');
+					}
+				).then(function () {
+					// Call abort a second time to verify that it doesn't throw
+					hasher.abort(new Error('ignored'));
+				}).then(function () {
+					// Call after abort to verify that it doesn't throw
+					hasher.close();
+				}).then(function () {
+					// Call after abort to verify that it doesn't throw
+					hasher.write('');
+				});
+			}
 		}
-	}
+	};
 }
 
 function toArray(buffer: crypto.Data): number[] {
@@ -29,8 +129,15 @@ function toArray(buffer: crypto.Data): number[] {
 }
 
 const suite: Suite = {
-	name: 'hash'
-}
+	name: 'hash',
+
+	'invalid algorithm'() {
+		crypto.setProvider(undefined);
+		assert.throws(function () {
+			crypto.getHash('foo');
+		}, /^invalid algorithm/);
+	}
+};
 
 addTests(suite, 'md5', 'The rain in Spain falls mainly on the plain.', [
 	0x39, 0x48, 0x71, 0x6D, 0x56, 0x75, 0x32, 0xD9,

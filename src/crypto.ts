@@ -26,20 +26,15 @@
  * function, which accepts a CryptoProvider.
  */
 
+import { Codec, ByteBuffer } from 'dojo-core/encoding';
 import Promise from 'dojo-core/Promise';
-import global from 'dojo-core/global';
-import has, { add as hasAdd } from 'dojo-core/has';
 import { Sink } from 'dojo-core/streams/WritableStream';
-
-hasAdd('webcrypto', typeof global.SubtleCrypto !== 'undefined');
+import has from './has';
 
 declare var define: { amd: any };
 declare var require: Function;
 
-export type Binary = Uint8Array | Buffer | number[];
-// TODO: this should be an encoding Codec (or equivalent) when that exists
-export type Codec = string;
-export type Data = string | Binary;
+export type Data = string | ByteBuffer;
 
 /**
  * An interface describing a cryptographic provider.
@@ -47,6 +42,26 @@ export type Data = string | Binary;
 export interface CryptoProvider {
 	getHash(algorithm: string): HashFunction;
 	getSign(algorithm: string): SignFunction;
+}
+
+/**
+ * A function that can hash a chunk of data.
+ */
+export interface HashFunction {
+	(data: ByteBuffer): Promise<ByteBuffer>;
+	(data: string, codec?: Codec): Promise<ByteBuffer>;
+	create<T extends Data>(codec?: Codec): Hasher<T>;
+	algorithm: string;
+}
+
+/**
+ * A signing function.
+ */
+export interface SignFunction {
+	(key: Key, data: ByteBuffer): Promise<ByteBuffer>;
+	(key: Key, data: string, codec?: Codec): Promise<ByteBuffer>;
+	create<T extends Data>(key: Key, codec?: Codec): Signer<T>;
+	algorithm: string;
 }
 
 /**
@@ -62,35 +77,31 @@ let provider: Promise<CryptoProvider>;
 export function getHash(algorithm: string): HashFunction {
 	let realHash: HashFunction;
 	const hashPromise = new Promise<HashFunction>(function (resolve, reject) {
-		getProvider().then(
-			function (provider) {
-				try {
-					realHash = provider.getHash(algorithm);
-					resolve(realHash);
-				}
-				catch (error) {
-					reject(error);
-				}
-			},
-			function (error) {
-				reject(error);
-			}
-		);
+		getProvider().then(function (provider) {
+			realHash = provider.getHash(algorithm);
+			resolve(realHash);
+		}).catch(function (error) {
+			reject(error);
+		});
 	});
 
 	// Return a wrapper that will defer calls to the hash until a provider has been loaded.
-	const hashFunction = <HashFunction> function (data: Data, codec?: Codec): Promise<Binary> {
+	const hashFunction = <HashFunction> function (data: Data, codec?: Codec): Promise<ByteBuffer> {
 		if (realHash) {
 			return realHash(<any> data, codec);
 		}
-		return hashPromise.then<Binary>(function (hash) {
+		return hashPromise.then<ByteBuffer>(function (hash) {
 			return hash(<any> data, codec);
 		});
-	}
+	};
 
 	// Return a wrapper class that will defer calls until a provider has been loaded and an actual Hasher instance has
 	// been created.
 	hashFunction.create = function<T extends Data> (codec?: Codec): Hasher<T> {
+		if (realHash) {
+			hashFunction.create = realHash.create.bind(realHash);
+			return realHash.create(codec);
+		}
 		return new HasherWrapper(hashPromise, codec);
 	};
 
@@ -104,31 +115,23 @@ export function getHash(algorithm: string): HashFunction {
 export function getSign(algorithm: string): SignFunction {
 	let realSign: SignFunction;
 	const signPromise = new Promise<SignFunction>(function (resolve, reject) {
-		getProvider().then(
-			function (provider) {
-				try {
-					realSign = provider.getSign(algorithm);
-					resolve(realSign);
-				}
-				catch (error) {
-					reject(error);
-				}
-			},
-			function (error) {
-				reject(error);
-			}
-		);
+		getProvider().then(function (provider) {
+			realSign = provider.getSign(algorithm);
+			resolve(realSign);
+		}).catch(function (error) {
+			reject(error);
+		});
 	});
 
 	// Return a wrapper that will defer calls to the hash until a provider has been loaded.
-	const signFunction = <SignFunction> function (key: Key, data: Data, codec?: Codec): Promise<Binary> {
+	const signFunction = <SignFunction> function (key: Key, data: Data, codec?: Codec): Promise<ByteBuffer> {
 		if (realSign) {
 			return realSign(key, <any> data, codec);
 		}
-		return signPromise.then<Binary>(function (sign) {
+		return signPromise.then<ByteBuffer>(function (sign) {
 			return sign(key, <any> data, codec);
 		});
-	}
+	};
 
 	// Return a wrapper class that will defer calls until a provider has been loaded and an actual Hasher instance has
 	// been created.
@@ -142,7 +145,7 @@ export function getSign(algorithm: string): SignFunction {
 /**
  * Returns a promise that resolves to the current provider object.
  */
-export function getProvider(): Promise<CryptoProvider> {
+function getProvider(): Promise<CryptoProvider> {
 	if (!provider) {
 		// Load a platform-specific default provider.
 		provider = new Promise(function (resolve, reject) {
@@ -185,21 +188,21 @@ export function setProvider(_provider: CryptoProvider): void {
  * An object for hashing a data stream.
  */
 export interface Hasher<T extends Data> extends Sink<T> {
-	digest: Promise<Binary>;  // read only
+	digest: Promise<ByteBuffer>;  // read only
 }
 
 /**
  * A wrapper around a Promise<HashFunction> that will defer calls while a provider is asynchronously loaded.
  */
 class HasherWrapper<T extends Data> implements Hasher<T> {
-	constructor(hashPromise: Promise<HashFunction>, encoding: string) {
+	constructor(hashPromise: Promise<HashFunction>, codec: Codec) {
 		Object.defineProperty(this, '_promise', {
 			value: new Promise((resolve, reject) => {
 				hashPromise.then(
 					(hashFunction) => {
 						// When the hash function resolves, create a Hasher and replace this object's methods with
 						// pointers to the corresponding methods on the Hasher.
-						const hasher = hashFunction.create(encoding);
+						const hasher = hashFunction.create(codec);
 						this.abort = hasher.abort.bind(hasher);
 						this.close = hasher.close.bind(hasher);
 						this.start = hasher.start.bind(hasher);
@@ -230,7 +233,7 @@ class HasherWrapper<T extends Data> implements Hasher<T> {
 
 	private _promise: Promise<Hasher<T>>;
 
-	digest: Promise<Binary>;
+	digest: Promise<ByteBuffer>;
 
 	abort(reason?: Error): Promise<void> {
 		return this._promise.then(function (hasher) {
@@ -258,16 +261,6 @@ class HasherWrapper<T extends Data> implements Hasher<T> {
 }
 
 /**
- * A function that can hash a chunk of data.
- */
-export interface HashFunction {
-	(data: Binary): Promise<Binary>;
-	(data: string, codec?: Codec): Promise<Binary>;
-	create<T extends Data>(codec?: Codec): Hasher<T>;
-	algorithm: string;
-}
-
-/**
  * A cryptographic key.
  */
 export interface Key {
@@ -276,24 +269,24 @@ export interface Key {
 }
 
 /**
- * An object for signing a data streams.
+ * An object for signing a data stream.
  */
 export interface Signer<T extends Data> extends Sink<T> {
-	signature: Promise<Binary>;  // read only
+	signature: Promise<ByteBuffer>;  // read only
 }
 
 /**
  * A wrapper around a Promise<SignFunction> that will defer calls while a provider is asynchronously loaded.
  */
 class SignerWrapper<T extends Data> implements Signer<T> {
-	constructor(signPromise: Promise<SignFunction>, key: Key, encoding: string) {
+	constructor(signPromise: Promise<SignFunction>, key: Key, codec: Codec) {
 		Object.defineProperty(this, '_promise', {
 			value: new Promise((resolve, reject) => {
 				signPromise.then(
 					(signFunction) => {
 						// When the sign function resolves, create a Signer and replace this object's methods with
 						// pointers to the corresponding methods on the Signer.
-						const signer = signFunction.create(key, encoding);
+						const signer = signFunction.create(key, codec);
 						this.abort = signer.abort.bind(signer);
 						this.close = signer.close.bind(signer);
 						this.start = signer.start.bind(signer);
@@ -323,7 +316,7 @@ class SignerWrapper<T extends Data> implements Signer<T> {
 
 	private _promise: Promise<Signer<T>>;
 
-	signature: Promise<Binary>;
+	signature: Promise<ByteBuffer>;
 
 	abort(reason?: Error): Promise<void> {
 		return this._promise.then(function (signer) {
@@ -348,14 +341,4 @@ class SignerWrapper<T extends Data> implements Signer<T> {
 			return signer.write(chunk);
 		});
 	}
-}
-
-/**
- * A signing function.
- */
-export interface SignFunction {
-	(key: Key, data: Binary): Promise<Binary>;
-	(key: Key, data: string, codec?: Codec): Promise<Binary>;
-	create<T extends Data>(key: Key, codec?: Codec): Signer<T>;
-	algorithm: string;
 }

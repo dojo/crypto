@@ -17,9 +17,11 @@
 	"files": [
 		"./typings/tsd.d.ts",
 		"./src/crypto.ts",
+		"./src/has.ts",
 		"./src/providers/node.ts",
 		"./src/providers/node/hash.ts",
 		"./src/providers/node/sign.ts",
+		"./src/providers/node/util.ts",
 		"./tests/functional/all.ts",
 		"./tests/intern-local.ts",
 		"./tests/intern.ts",

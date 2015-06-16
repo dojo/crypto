@@ -1,31 +1,24 @@
 import * as crypto from 'crypto';
 import Promise from 'dojo-core/Promise';
-import { Binary, Codec, Data, Key, Signer, SignFunction } from '../../crypto';
+import { ByteBuffer, Codec, utf8 } from 'dojo-core/encoding';
+import { Data, Key, Signer, SignFunction } from '../../crypto';
+import { getEncodingName } from './util';
 
 /**
- * Sign algorithms available through this provider. This object maps crypto API algorithm names to native (Node.js)
- * names.
+ * A mapping of crypto algorithm names to their node equivalents
  */
 const ALGORITHMS = {
-	hmac: 'hmac',
+	hmac: 'hmac'
 };
 
 const resolvedPromise = Promise.resolve();
 
 /**
- * Returns the name of a Node encoding scheme that corresponds to a particular Codec.
- */
-function getEncodingName(codec?: Codec) {
-	return codec ? String(codec) : undefined;
-}
-
-/**
  * Generates a signature for a chunk of data.
  */
-function sign(algorithm: string, key: Key, data: Data, codec?: Codec): Promise<Binary> {
+function sign(algorithm: string, key: Key, data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
 	const hashAlgorithm = key.algorithm;
 	if (algorithm === 'hmac') {
-		let keyData = key.data;
 		const hmac = crypto.createHmac(hashAlgorithm, <Buffer> key.data);
 		const encoding = getEncodingName(codec);
 		hmac.update(data, encoding);
@@ -61,7 +54,7 @@ class NodeSigner<T extends Data> implements Signer<T> {
 	private _resolve: (value: any) => void;
 	private _reject: (reason: Error) => void;
 
-	signature: Promise<Binary>;
+	signature: Promise<ByteBuffer>;
 
 	abort(reason?: Error): Promise<void> {
 		if (this._sign) {
@@ -92,7 +85,8 @@ class NodeSigner<T extends Data> implements Signer<T> {
 
 	write(chunk: T): Promise<void> {
 		if (this._sign) {
-			this._sign.update(chunk);
+			// The node typing for Sign#update is incorrect -- it shares the same signature as Hash#update
+			this._sign.update.call(this._sign, chunk, this._encoding);
 		}
 		return resolvedPromise;
 	}
@@ -100,15 +94,15 @@ class NodeSigner<T extends Data> implements Signer<T> {
 
 export default function getSign(algorithm: string): SignFunction {
 	if (!(algorithm in ALGORITHMS)) {
-		throw new Error('invalid algorithm');
+		throw new Error('invalid algorithm; available algorithms are [ \'' + Object.keys(ALGORITHMS).join('\', \'') + '\' ]');
 	}
 
-	const signFunction = <SignFunction> function (key: Key, data: Data, codec?: Codec): Promise<Binary> {
+	const signFunction = <SignFunction> function (key: Key, data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
 		return sign(algorithm, key, data, codec);
-	}
-	signFunction.create = function<T extends Data> (key: Key, codec?: Codec): Signer<T> {
+	};
+	signFunction.create = function<T extends Data> (key: Key, codec: Codec = utf8): Signer<T> {
 		return new NodeSigner<T>(algorithm, key, getEncodingName(codec));
-	}
+	};
 
 	return signFunction;
 }

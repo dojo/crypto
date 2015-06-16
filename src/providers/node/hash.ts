@@ -1,27 +1,22 @@
 import * as crypto from 'crypto';
 import Promise from 'dojo-core/Promise';
-import { Binary, Codec, Data, Hasher, HashFunction } from '../../crypto';
+import { ByteBuffer, Codec, utf8 } from 'dojo-core/encoding';
+import { Data, Hasher, HashFunction } from '../../crypto';
+import { getEncodingName } from './util';
 
 /**
- * Algorithms available through this provider. This
+ * A mapping of crypto algorithm names to their node equivalents
  */
-export const ALGORITHMS = {
+const ALGORITHMS = {
 	md5: 'md5',
 	sha1: 'sha1',
 	sha256: 'sha256'
 };
 
 /**
- * Returns the name of a Node encoding scheme that corresponds to a particular Codec.
- */
-function getEncodingName(codec?: Codec) {
-	return codec ? String(codec) : undefined;
-}
-
-/**
  * Hashes a chunk of data.
  */
-function nodeHash(algorithm: string, data: Data, codec?: Codec): Promise<Binary> {
+function nodeHash(algorithm: string, data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
 	const hash = crypto.createHash(algorithm);
 	const encoding = getEncodingName(codec);
 	hash.update(data, encoding);
@@ -55,7 +50,7 @@ class NodeHasher<T extends Data> implements Hasher<T> {
 	private _resolve: (value: any) => void;
 	private _reject: (reason: Error) => void;
 
-	digest: Promise<Binary>;
+	digest: Promise<ByteBuffer>;
 
 	abort(reason?: Error): Promise<void> {
 		if (this._hash) {
@@ -90,15 +85,15 @@ class NodeHasher<T extends Data> implements Hasher<T> {
 
 export default function getHash(algorithm: string): HashFunction {
 	if (!(algorithm in ALGORITHMS)) {
-		throw new Error('invalid algorithm');
+		throw new Error('invalid algorithm; available algorithms are [ \'' + Object.keys(ALGORITHMS).join('\', \'') + '\' ]');
 	}
 
-	const hasher = <HashFunction> function (data: Data, codec?: Codec): Promise<Binary> {
+	const hasher = <HashFunction> function (data: Data, codec: Codec = utf8): Promise<ByteBuffer> {
 		return nodeHash(algorithm, data, codec);
-	}
-	hasher.create = function<T extends Data> (codec?: Codec): Hasher<T> {
+	};
+	hasher.create = function<T extends Data> (codec: Codec = utf8): Hasher<T> {
 		return new NodeHasher<T>(algorithm, getEncodingName(codec));
-	}
+	};
 	hasher.algorithm = algorithm;
 
 	return hasher;

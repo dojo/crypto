@@ -31,8 +31,8 @@ import Promise from 'dojo-core/Promise';
 import { Sink } from 'dojo-core/streams/WritableStream';
 import has from './has';
 
-declare var define: { amd: any };
-declare var require: Function;
+declare const define: { amd: any };
+declare const require: Function;
 
 export type Data = string | ByteBuffer;
 
@@ -85,6 +85,7 @@ export interface SignFunction {
  * need to access providers directly.
  */
 let provider: CryptoProvider;
+let providerPromise: Promise<CryptoProvider>;
 
 /**
  * Gets the HashFunction for a particular algorithm. The algorithm is specified as a string for simplicity and
@@ -186,41 +187,60 @@ export function getSign(algorithm: string): SignFunction {
  * Returns a promise that resolves to the current provider object.
  */
 function getProvider(): Promise<CryptoProvider> {
-	// Load a platform-specific default provider.
-	return new Promise(function (resolve, reject) {
-		if (typeof define === 'function' && define.amd) {
-			function loadProvider(mid: string) {
-				require([ mid ], function (_provider: CryptoProvider) {
-					provider = _provider;
-					resolve(provider);
-				});
-			}
+	if (!providerPromise) {
+		// Load a platform-specific default provider.
+		var loadPromise = providerPromise = new Promise(function (resolve, reject) {
+			if (typeof define === 'function' && define.amd) {
+				function loadProvider(mid: string) {
+					require([ mid ], function (_provider: CryptoProvider) {
+						provider = _provider;
+						resolve(provider);
+					});
+				}
 
-			if (has('host-node')) {
-				loadProvider('./providers/node');
+				if (has('host-node')) {
+					loadProvider('./providers/node');
+				}
+				else if (has('webcrypto')) {
+					loadProvider('./providers/webcrypto');
+				}
+				else {
+					loadProvider('./providers/script');
+				}
 			}
-			else if (has('webcrypto')) {
-				loadProvider('./providers/webcrypto');
+			else if (has('host-node')) {
+				provider = require('./providers/node');
+				resolve(provider);
 			}
 			else {
-				loadProvider('./providers/script');
+				reject(new Error('Unknown environment or loader'));
 			}
-		}
-		else if (has('host-node')) {
-			provider = require('./providers/node');
-			resolve(provider);
-		}
-		else {
-			reject(new Error('Unknown environment or loader'));
-		}
-	});
+		}).finally(function () {
+			if (providerPromise === loadPromise) {
+				providerPromise = undefined;
+			}
+		});
+	}
+
+	return providerPromise;
 }
 
 /**
  * Sets the implementation provider.
+ *
+ * The provider may either be a loaded provider or a Promise that will resolve to a provider.
  */
-export function setProvider(_provider: CryptoProvider): void {
-	provider = _provider;
+export function setProvider(_provider: CryptoProvider | Promise<CryptoProvider>): void {
+	providerPromise = provider = null;
+
+	if (_provider) {
+		if ((<any> _provider).then) {
+			providerPromise = <Promise<CryptoProvider>> _provider;
+		}
+		else if ((<any> _provider).getHash) {
+			provider = <CryptoProvider> _provider;
+		}
+	}
 }
 
 /**
@@ -228,6 +248,24 @@ export function setProvider(_provider: CryptoProvider): void {
  */
 export interface Hasher<T extends Data> extends Sink<T> {
 	digest: Promise<ByteBuffer>;  // read only
+}
+
+/**
+ * Call a method that returns a promise, or return a resolved Promise if the method doesn't exist on the object
+ */
+function callOrNoop(object: any, methodName: string, ...args: any[]): Promise<any> {
+	const method: Function = object[methodName];
+	if (!method) {
+		return Promise.resolve()
+	}
+	return method.apply(object, args);
+}
+
+function bindOrUndefined(object: any, methodName: string): any {
+	const method: Function = object[methodName];
+	if (method) {
+		return method.bind(object);
+	}
 }
 
 /**
@@ -242,10 +280,10 @@ class HasherWrapper<T extends Data> implements Hasher<T> {
 						// When the hash function resolves, create a Hasher and replace this object's methods with
 						// pointers to the corresponding methods on the Hasher.
 						const hasher = hashFunction.create(codec);
-						this.abort = hasher.abort.bind(hasher);
-						this.close = hasher.close.bind(hasher);
-						this.start = hasher.start.bind(hasher);
-						this.write = hasher.write.bind(hasher);
+						this.abort = bindOrUndefined(hasher, 'abort');
+						this.close = bindOrUndefined(hasher, 'close');
+						this.start = bindOrUndefined(hasher, 'start');
+						this.write = bindOrUndefined(hasher, 'write');
 						resolve(hasher);
 					},
 					function (error) {
@@ -274,27 +312,29 @@ class HasherWrapper<T extends Data> implements Hasher<T> {
 
 	digest: Promise<ByteBuffer>;
 
+	// Sink methods; the provider may or may not implement these, so call them with callOrNoop
+
 	abort(reason?: Error): Promise<void> {
 		return this._promise.then(function (hasher) {
-			return hasher.abort(reason);
+			return callOrNoop(hasher, 'abort', reason);
 		});
 	}
 
 	close(): Promise<void> {
 		return this._promise.then(function (hasher) {
-			return hasher.close();
+			return callOrNoop(hasher, 'close');
 		});
 	}
 
 	start(error: (error: Error) => void): Promise<void> {
 		return this._promise.then(function (hasher) {
-			return hasher.start(error);
+			return callOrNoop(hasher, 'start', error);
 		});
 	}
 
 	write(chunk: T): Promise<void> {
 		return this._promise.then(function (hasher) {
-			return hasher.write(chunk);
+			return callOrNoop(hasher, 'write', chunk);
 		});
 	}
 }
@@ -321,21 +361,18 @@ class SignerWrapper<T extends Data> implements Signer<T> {
 	constructor(signPromise: Promise<SignFunction>, key: Key, codec: Codec) {
 		Object.defineProperty(this, '_promise', {
 			value: new Promise((resolve, reject) => {
-				signPromise.then(
-					(signFunction) => {
-						// When the sign function resolves, create a Signer and replace this object's methods with
-						// pointers to the corresponding methods on the Signer.
-						const signer = signFunction.create(key, codec);
-						this.abort = signer.abort.bind(signer);
-						this.close = signer.close.bind(signer);
-						this.start = signer.start.bind(signer);
-						this.write = signer.write.bind(signer);
-						resolve(signer);
-					},
-					function (error) {
-						reject(error);
-					}
-				);
+				signPromise.then((signFunction) => {
+					// When the sign function resolves, create a Signer and replace this object's methods with
+					// pointers to the corresponding methods on the Signer.
+					const signer = signFunction.create(key, codec);
+					this.abort = bindOrUndefined(signer, 'abort');
+					this.close = bindOrUndefined(signer, 'close');
+					this.start = bindOrUndefined(signer, 'start');
+					this.write = bindOrUndefined(signer, 'write');
+					resolve(signer);
+				}).catch(function (error) {
+					reject(error);
+				});
 			})
 		});
 
@@ -357,27 +394,29 @@ class SignerWrapper<T extends Data> implements Signer<T> {
 
 	signature: Promise<ByteBuffer>;
 
+	// Sink methods; the provider may or may not implement these, so call them with callOrNoop
+
 	abort(reason?: Error): Promise<void> {
 		return this._promise.then(function (signer) {
-			return signer.abort(reason);
+			return callOrNoop(signer, 'abort', reason);
 		});
 	}
 
 	close(): Promise<void> {
 		return this._promise.then(function (signer) {
-			return signer.close();
+			return callOrNoop(signer, 'close');
 		});
 	}
 
 	start(error: (error: Error) => void): Promise<void> {
 		return this._promise.then(function (signer) {
-			return signer.start(error);
+			return callOrNoop(signer, 'start', error);
 		});
 	}
 
 	write(chunk: T): Promise<void> {
 		return this._promise.then(function (signer) {
-			return signer.write(chunk);
+			return callOrNoop(signer, 'write', chunk);
 		});
 	}
 }

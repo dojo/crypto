@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import Promise from 'dojo-core/Promise';
+import Promise, { State } from 'dojo-core/Promise';
 import { ByteBuffer, Codec, utf8 } from 'dojo-core/encoding';
 import { Data, Key, Signer, SignFunction } from '../../crypto';
 import { getEncodingName } from './util';
@@ -20,6 +20,12 @@ function sign(algorithm: string, key: Key, data: Data, codec: Codec): Promise<By
 	const hashAlgorithm = key.algorithm;
 	const hmac = crypto.createHmac(hashAlgorithm, <Buffer> key.data);
 	const encoding = getEncodingName(codec);
+
+	// Node crypto requires the input data to be a string or Buffer, so convert arrays to Buffers
+	if (Array.isArray(data)) {
+		data = new Buffer(<number[]> data);
+	}
+
 	hmac.update(data, encoding);
 	return Promise.resolve(hmac.digest());
 }
@@ -29,17 +35,28 @@ function sign(algorithm: string, key: Key, data: Data, codec: Codec): Promise<By
  */
 class NodeSigner<T extends Data> implements Signer<T> {
 	constructor(algorithm: string, key: Key, encoding: string) {
-		Object.defineProperty(this, '_sign', {
-			configurable: true,
-			value: crypto.createHmac(key.algorithm, <Buffer> key.data)
-		});
-		Object.defineProperty(this, '_encoding', { value: encoding });
 		Object.defineProperty(this, 'signature', {
 			value: new Promise((resolve, reject) => {
 				Object.defineProperty(this, '_resolve', { value: resolve });
 				Object.defineProperty(this, '_reject', { value: reject });
 			})
 		});
+
+		try {
+			// Throw a useful error if the key is invalid
+			if (typeof key.data !== 'string' && !(key.data instanceof Buffer)) { 
+				throw new Error('Key data must be a non-null string or buffer');
+			}
+
+			Object.defineProperty(this, '_sign', {
+				configurable: true,
+				value: crypto.createHmac(key.algorithm, <Buffer> key.data)
+			});
+			Object.defineProperty(this, '_encoding', { value: encoding });
+		}
+		catch (error) {
+			this._reject(error);
+		}
 	}
 
 	private _sign: crypto.Hmac;
@@ -49,36 +66,50 @@ class NodeSigner<T extends Data> implements Signer<T> {
 
 	signature: Promise<ByteBuffer>;
 
-	abort(reason?: Error): Promise<void> {
-		if (this._sign) {
-			// Release the reference to the Hmac/Signer instance and reject the signature
-			Object.defineProperty(this, '_sign', { value: undefined });
-			this._reject(reason);
+	abort(reason?: Error): Promise<any> {
+		if (this.signature.state !== State.Pending) {
+			return this.signature;
 		}
+
+		// Release the reference to the Hmac/Signer instance and reject the signature
+		Object.defineProperty(this, '_sign', { value: undefined });
+		this._reject(reason);
 		return resolvedPromise;
 	}
 
-	close(): Promise<void> {
-		if (this._sign) {
-			const result = (<crypto.Hmac> this._sign).digest();
-			// Release the reference to the Hmac/Signer instance
-			Object.defineProperty(this, '_sign', { value: undefined });
-			this._resolve(result);
+	close(): Promise<any> {
+		if (this.signature.state !== State.Pending) {
+			return this.signature;
 		}
+
+		const result = (<crypto.Hmac> this._sign).digest();
+		// Release the reference to the Hmac/Signer instance
+		Object.defineProperty(this, '_sign', { value: undefined });
+		this._resolve(result);
 		return resolvedPromise;
 	}
 
-	start(error: (error: Error) => void): Promise<void> {
-		// Nothing to do to start a signer
-		return resolvedPromise;
-	}
-
-	write(chunk: T): Promise<void> {
-		if (this._sign) {
-			// The node typing for Sign#update is incorrect -- it shares the same signature as Hash#update
-			this._sign.update.call(this._sign, chunk, this._encoding);
+	write(chunk: T): Promise<any> {
+		if (this.signature.state !== State.Pending) {
+			return this.signature;
 		}
-		return resolvedPromise;
+
+		let _chunk: T | Buffer = chunk;
+		// Node can't work with Arrays, so convert them to Buffers
+		// The node typing for Sign#update is incorrect -- it shares the same signature as Hash#update
+		try {
+			if (Array.isArray(chunk)) {
+				this._sign.update.call(this._sign, new Buffer(<any> chunk, this._encoding));
+			}
+			else {
+				this._sign.update.call(this._sign, chunk, this._encoding);
+			}
+			return resolvedPromise;
+		}
+		catch (error) {
+			this._reject(error);
+			return this.signature;
+		}
 	}
 }
 

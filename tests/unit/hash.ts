@@ -165,6 +165,20 @@ const suite: Suite = {
 		hasher.digest.catch(dfd.callback(function () {}));
 	},
 
+	'preloaded good provider': function () {
+		crypto.setProvider(<any> {
+			getHash: function () {
+				return function () {
+					return Promise.resolve('foo');
+				}
+			}
+		});
+		const hash = crypto.getHash('md5');
+		return hash('123').then(function (value) {
+			assert.strictEqual(value, 'foo');
+		});
+	},
+
 	// Test HasherWrapper methods that don't get exercised by the regular provider tests
 	wrapper: (function () {
 		const key = { algorithm: 'md5', data: '123' };

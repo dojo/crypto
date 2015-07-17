@@ -187,40 +187,45 @@ export function getSign(algorithm: string): SignFunction {
  * Returns a promise that resolves to the current provider object.
  */
 function getProvider(): Promise<CryptoProvider> {
-	if (!providerPromise) {
-		// Load a platform-specific default provider.
-		var loadPromise = providerPromise = new Promise(function (resolve, reject) {
-			if (typeof define === 'function' && define.amd) {
-				function loadProvider(mid: string) {
-					require([ mid ], function (_provider: CryptoProvider) {
-						provider = _provider;
-						resolve(provider);
-					});
-				}
+	if (provider) {
+		return Promise.resolve(provider);
+	}
 
-				if (has('host-node')) {
-					loadProvider('./providers/node');
-				}
-				else if (has('webcrypto')) {
-					loadProvider('./providers/webcrypto');
-				}
-				else {
-					loadProvider('./providers/script');
-				}
+	if (providerPromise) {
+		return providerPromise;
+	}
+
+	providerPromise = new Promise(function (resolve, reject) {
+		// Load a platform-specific default provider.
+		if (typeof define === 'function' && define.amd) {
+			function loadProvider(mid: string) {
+				require([ mid ], function (_provider: CryptoProvider) {
+					// Don't overwrite a provider if one has already been set
+					if (!provider) {
+						provider = _provider;
+					}
+					resolve(provider);
+				});
 			}
-			else if (has('host-node')) {
-				provider = require('./providers/node');
-				resolve(provider);
+
+			if (has('host-node')) {
+				loadProvider('./providers/node');
+			}
+			else if (has('webcrypto')) {
+				loadProvider('./providers/webcrypto');
 			}
 			else {
-				reject(new Error('Unknown environment or loader'));
+				loadProvider('./providers/script');
 			}
-		}).finally(function () {
-			if (providerPromise === loadPromise) {
-				providerPromise = undefined;
-			}
-		});
-	}
+		}
+		else if (has('host-node')) {
+			provider = require('./providers/node');
+			resolve(provider);
+		}
+		else {
+			reject(new Error('Unknown environment or loader'));
+		}
+	});
 
 	return providerPromise;
 }

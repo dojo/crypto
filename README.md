@@ -9,9 +9,10 @@ Currently the crypto package provides a suite of hashing functions and an HMAC i
 ### Hashing
 
 ```ts
-import createHash from 'dojo-crypto/hash';
+import getHash from 'dojo-crypto/hash';
+import WritableStream from 'dojo-core/streams/WritableStream';
 
-const sha1 = createHash('sha1');
+const sha1 = getHash('sha1');
 
 // Hash strings
 sha1('this is a test').then(function (result) {
@@ -22,9 +23,18 @@ sha1('this is another test').then(function (result) {
 });
 
 // Hash a stream
-const sha1Hasher = sha1.create();
-sha1Hasher.update('this is a test');
+let sha1Hasher = sha1.create();
+sha1Hasher.write('this is a test');
 sha1Hasher.close();
+sha1Hasher.digest.then(function (result) {
+	console.log(got hash:', result);
+});
+
+// Use a hasher as a WritableStream sink
+sha1Hasher = sha1.create();
+const stream = new WritableStream<string>(sha1Hasher);
+stream.write('this is a test');
+stream.close();
 sha1Hasher.digest.then(function (result) {
 	console.log(got hash:', result);
 });
@@ -34,9 +44,10 @@ sha1Hasher.digest.then(function (result) {
 
 ```ts
 import sha1 from 'dojo-crypto/hash';
-import createSign, { Key } from 'dojo-crypto/sign';
+import getSign, { Key } from 'dojo-crypto/sign';
+import WritableStream from 'dojo-core/streams/WritableStream';
 
-const hmac = createSign('hmac');
+const hmac = getSign('hmac');
 const key: Key = {
 	algorithm: 'sha1',
 	data: 'foo'
@@ -51,14 +62,22 @@ hmac(key, 'this is another test').then(function (result) {
 });
 
 // Generate a signature for a stream
-const hmacSigner = hmac.create(key);
-hmacSigner.update('this is a test');
+let hmacSigner = hmac.create(key);
+hmacSigner.write('this is a test');
 hmacSigner.close();
 hmacSigner.signature.then(function (result) {
 	console.log(got hash:', result);
 });
-```
 
+// Use a signer as a WritableStreams sink
+hmacSigner = hmac.create(key);
+const stream = new WritableStream<string>(hmacSigner);
+stream.write('this is a test');
+stream.close();
+hmacSigner.signature.then(function (result) {
+	console.log(got hash:', result);
+});
+```
 
 ## How do I use this package?
 

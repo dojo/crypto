@@ -10,12 +10,14 @@
 		"target": "es5"
 	},
 	"filesGlob": [
-		"./typings/tsd.d.ts",
+		"./node_modules/dojo-core/_typings/dojo-core/dojo-core-2.0.0-pre.d.ts",
+		"./typings/node/node.d.ts",
 		"./src/**/*.ts",
 		"./tests/**/*.ts"
 	],
 	"files": [
-		"./typings/tsd.d.ts",
+		"./node_modules/dojo-core/_typings/dojo-core/dojo-core-2.0.0-pre.d.ts",
+		"./typings/node/node.d.ts",
 		"./src/crypto.ts",
 		"./src/has.ts",
 		"./src/providers/node.ts",
@@ -41,8 +43,6 @@
 		"./tests/typings/dojo2/dojo.d.ts",
 		"./tests/typings/intern/intern.d.ts",
 		"./tests/typings/leadfoot/leadfoot.d.ts",
-		"./tests/typings/node/node.d.ts",
-		"./tests/typings/tsd.d.ts",
 		"./tests/unit/all.ts",
 		"./tests/unit/hash.ts",
 		"./tests/unit/sign.ts"

@@ -37,7 +37,7 @@ module.exports = function (grunt) {
 		tsconfig: tsconfig,
 		all: [ '<%= tsconfig.filesGlob %>' ],
 		skipTests: [ '<%= all %>' , '!tests/**/*.ts' ],
-		staticTestFiles: 'tests/**/*.{html,css}',
+		staticTestFiles: 'tests/**/*.{html,css,json,xml}',
 		devDirectory: '<%= tsconfig.compilerOptions.outDir %>',
 		istanbulIgnoreNext: '/* istanbul ignore next */',
 
@@ -61,7 +61,7 @@ module.exports = function (grunt) {
 				}
 			},
 			coverage: {
-				src: [ 'html-report/' ]
+				src: [ 'coverage-final.json', 'html-report/' ]
 			}
 		},
 
@@ -82,7 +82,7 @@ module.exports = function (grunt) {
 				expand: true,
 				cwd: 'typings/',
 				src: [ '**/*.d.ts', '!tsd.d.ts' ],
-				dest: 'dist/typings/'
+				dest: 'dist/_typings/'
 			}
 		},
 
@@ -93,7 +93,7 @@ module.exports = function (grunt) {
 			},
 			dist: {
 				options: {
-					out: 'dist/typings/<%= name %>/<%= name %>-<%= version %>.d.ts'
+					out: 'dist/_typings/<%= name %>/<%= name %>-<%= version %>.d.ts'
 				},
 				src: [ '<%= skipTests %>' ]
 			}
@@ -149,7 +149,7 @@ module.exports = function (grunt) {
 				overwrite: true,
 				replacements: [
 					{
-						from: /^(var __(?:extends|decorate) = )/gm,
+						from: /^(var __(?:extends|decorate|param) = )/gm,
 						to: '$1<%= istanbulIgnoreNext %> '
 					},
 					{
@@ -275,9 +275,9 @@ module.exports = function (grunt) {
 		'dtsGenerator:dist'
 	]);
 	grunt.registerTask('test', [ 'dev', 'intern:client' ]);
+	grunt.registerTask('test-runner', [ 'dev', 'intern:runner' ]);
 	grunt.registerTask('test-local', [ 'dev', 'intern:local' ]);
 	grunt.registerTask('test-proxy', [ 'dev', 'intern:proxy' ]);
-	grunt.registerTask('test-runner', [ 'dev', 'intern:runner' ]);
 	grunt.registerTask('ci', [ 'tslint', 'test' ]);
 	grunt.registerTask('default', [ 'clean', 'dev' ]);
 };

@@ -52,7 +52,12 @@ export var loader = {
 		{ name: 'dojo-core', location: 'node_modules/dojo-core' },
 		{ name: 'src', location: '_build/src' },
 		{ name: 'tests', location: '_build/tests' }
-	]
+	],
+	map: {
+		src: {
+			'crypto': 'tests/support/node/crypto'
+		}
+	}
 };
 
 // Non-functional test suite(s) to run in each browser

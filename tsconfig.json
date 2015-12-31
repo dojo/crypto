@@ -10,23 +10,41 @@
 		"target": "es5"
 	},
 	"filesGlob": [
-		"./typings/tsd.d.ts",
+		"./node_modules/dojo-core/_typings/dojo-core/dojo-core-2.0.0-pre.d.ts",
+		"./typings/node/node.d.ts",
 		"./src/**/*.ts",
 		"./tests/**/*.ts"
 	],
 	"files": [
-		"./typings/tsd.d.ts",
-		"./src/main.ts",
+		"./node_modules/dojo-core/_typings/dojo-core/dojo-core-2.0.0-pre.d.ts",
+		"./typings/node/node.d.ts",
+		"./src/crypto.ts",
+		"./src/has.ts",
+		"./src/providers/node.ts",
+		"./src/providers/node/hash.ts",
+		"./src/providers/node/sign.ts",
+		"./src/providers/node/util.ts",
+		"./src/providers/script.ts",
+		"./src/providers/script/base.ts",
+		"./src/providers/script/hash.ts",
+		"./src/providers/script/hmac.ts",
+		"./src/providers/script/md5.ts",
+		"./src/providers/script/sha1.ts",
+		"./src/providers/script/sha32.ts",
+		"./src/providers/script/sha64.ts",
+		"./src/providers/script/sign.ts",
 		"./tests/functional/all.ts",
 		"./tests/intern-local.ts",
 		"./tests/intern.ts",
+		"./tests/support/node.d.ts",
+		"./tests/support/node/crypto.ts",
 		"./tests/typings/chai/chai.d.ts",
 		"./tests/typings/digdug/digdug.d.ts",
 		"./tests/typings/dojo2/dojo.d.ts",
 		"./tests/typings/intern/intern.d.ts",
 		"./tests/typings/leadfoot/leadfoot.d.ts",
-		"./tests/typings/node/node.d.ts",
-		"./tests/typings/tsd.d.ts",
-		"./tests/unit/all.ts"
+		"./tests/unit/all.ts",
+		"./tests/unit/hash.ts",
+		"./tests/unit/sign.ts"
 	]
 }

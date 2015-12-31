@@ -1,1 +1,2 @@
-export var removeThis = 1;
+import './hash';
+import './sign';

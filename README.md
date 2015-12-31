@@ -4,7 +4,80 @@ The crypto package provides cryptographic utilities including hashing and signin
 
 ## Features
 
-Coming soon!
+Currently the crypto package provides a suite of hashing functions and an HMAC implementation.
+
+### Hashing
+
+```ts
+import getHash from 'dojo-crypto/hash';
+import WritableStream from 'dojo-core/streams/WritableStream';
+
+const sha1 = getHash('sha1');
+
+// Hash strings
+sha1('this is a test').then(function (result) {
+	console.log('got hash:', result);
+});
+sha1('this is another test').then(function (result) {
+	console.log('got hash:', result);
+});
+
+// Hash a stream
+let sha1Hasher = sha1.create();
+sha1Hasher.write('this is a test');
+sha1Hasher.close();
+sha1Hasher.digest.then(function (result) {
+	console.log(got hash:', result);
+});
+
+// Use a hasher as a WritableStream sink
+sha1Hasher = sha1.create();
+const stream = new WritableStream<string>(sha1Hasher);
+stream.write('this is a test');
+stream.close();
+sha1Hasher.digest.then(function (result) {
+	console.log(got hash:', result);
+});
+```
+
+### Signing
+
+```ts
+import sha1 from 'dojo-crypto/hash';
+import getSign, { Key } from 'dojo-crypto/sign';
+import WritableStream from 'dojo-core/streams/WritableStream';
+
+const hmac = getSign('hmac');
+const key: Key = {
+	algorithm: 'sha1',
+	data: 'foo'
+};
+
+// Generate signatures for strings
+hmac(key, 'this is a test').then(function (result) {
+	console.log('got HMAC:', result);
+});
+hmac(key, 'this is another test').then(function (result) {
+	console.log('got HMAC:', result);
+});
+
+// Generate a signature for a stream
+let hmacSigner = hmac.create(key);
+hmacSigner.write('this is a test');
+hmacSigner.close();
+hmacSigner.signature.then(function (result) {
+	console.log(got hash:', result);
+});
+
+// Use a signer as a WritableStreams sink
+hmacSigner = hmac.create(key);
+const stream = new WritableStream<string>(hmacSigner);
+stream.write('this is a test');
+stream.close();
+hmacSigner.signature.then(function (result) {
+	console.log(got hash:', result);
+});
+```
 
 ## How do I use this package?
 
@@ -25,6 +98,12 @@ cd ../../dojo-crypto
 npm install
 npm link dojo-core
 ```
+
+To use a hash or signing algorithm, simply import the desired algorithm(s) from
+`dojo-crypto/hash` (and `dojo-crypto/sign` if required) in your code. A default
+crypto provider is selected when the library is loaded, either `node`,
+`webcrypto`, or `script`. The end user may select a different provider by
+importing `provider` from `dojo-crypto/main` and setting it to a new value.
 
 ## How do I contribute?
 
